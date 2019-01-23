@@ -1,0 +1,494 @@
+/*Header Decleration*/
+#include <cstdio>
+#include <cstdlib>
+#include <cmath>
+#include <algorithm>
+#include <iostream>
+#include <ctime>
+using namespace std;
+/*GLOBAL DECLERATION */
+const int N = 4, MAXSTEP = 500, MAXP = 15; /*Size of the puzzle matrix, Maximum Step, Maximum number of puzzle grids*/
+int tile[N][N]; int disp[4][4]; int cpyautotile[16]; int autotile[4][4];
+const int dr[4] = { 1, 0, -1, 0 }, dc[4] = { 0, 1, 0, -1 }, opp[4] = { 2, 3, 0, 1 }; //delta row, delta column, opposite direction.
+int tr[MAXP], tc[MAXP], upper; //tile row recording, tile column recording
+char rec[MAXSTEP]; //recording answer
+const char name[4] = { 'D', 'R', 'U', 'L' };
+bool pass; int T; int inversion = 0; int m = 1;
+/*GLOBAL DECLERATION ENDS*/
+
+/*Function Decleration*/
+void start(); void manin(); void disps(); void initialization();
+int manhattan_distance(int tile[][N]); bool valid_move_check(int , int ); bool solvability(int , int tile[][N] );
+void IDAstar(int, int, int, int, int); void FYS(int *arr);
+/*Function Decleration Ends*/
+/*---------------------------------------------------------------PROGRAM BODY----------------------------------------------------------------------*/
+
+void start()
+{
+	cout << "\t \t \t \t  WELCOME" << endl;
+	cout << "\t ------------------------------------------------------------" << endl;
+	cout << "\t | This program finds the optimal solution for 4x4 puzzle   |" << endl;
+	cout << "\t | The program utilizes IDA* Algorithm to find the solution |" << endl;
+	cout << "\t ------------------------------------------------------------" << endl;
+	cout << "\n";
+}
+
+void initialization()
+{
+	for (int i = 0; i < MAXP; i++)
+		tr[i] = i / 4, tc[i] = i % 4;
+}
+
+void FYS(int *arr)
+{/*This is the Fisher-Yates Shuffle to generate new game boards automatically*/
+	int a[16];
+	int ind[16];
+	for (int i = 0; i < 16; i++)
+		ind[i] = 0;
+	int index;
+
+	for (int i = 0; i < 16; i++)
+	{
+		do
+		{
+			index = rand() % 16;
+		} while (ind[index] != 0);
+
+		ind[index] = 1;
+		a[i] = *(arr + index);
+	}
+
+	for (int i = 0; i < 16; i++) /* Copying the shuffled array into a temp array due to pointer restrictions*/
+		cpyautotile[i] = a[i];
+
+	int count = 0;				/*Copying to form a new game board*/
+	for (int a = 0; a < 4; a++)
+	{
+		for (int b = 0; b < 4; b++)
+		{
+			autotile[a][b] = cpyautotile[count];
+			count++;
+		}
+
+	}
+}
+
+void manin()
+{
+	
+	for (int t = 0; t < T; t++) /* Control for the number of puzzles to be solved*/
+	{
+		pass = false;
+		int sr, sc;
+
+		for (int i = 0; i < N; i++)
+		for (int j = 0; j < N; j++)
+		{
+			cin >> tile[i][j];
+			disp[i][j] = tile[i][j];
+			if (tile[i][j]) tile[i][j]--;
+			else          tile[i][j] = 15, sr = i, sc = j;
+		}
+
+		if (!solvability(sr, tile))
+		{
+			cout << "This puzzle is not solvable...";
+			cout << "Do you want to know why?." << endl;
+			cout << "Press 'y' to know why or press 'n' to continue and input a new puzzle matrix" << endl;
+			/* ADDITIONAL CODE NEEDED HERE*/
+			char re;
+			cin >> re;
+			if (re == 'y')
+			{
+				cout << "The inversion number is: " << inversion << endl;
+				cout << "The inversion number is clearly odd \n" << endl;
+				goto nsnp;
+			}
+			else if (re == 'n')
+			{
+				goto nsnp;
+			}
+		}
+		else
+		{
+			/*Solvability Test passed moving on to finding solution*/
+			/*Algorithm Execution Time starts*/
+			clock_t start;
+			double duration;
+			start = std::clock();
+
+			cout << "The puzzle seams solvable..." << endl;
+			cout << "Now finding solution... Please wait... This may take a while." << endl;
+			int cost = manhattan_distance(tile);
+			upper = min(MAXSTEP, cost + 5); //set a lowerbound for your DFS limit
+
+			while (!pass) /*While the puzzle is not solved.Increase depth at each prospective node*/
+			{
+				IDAstar(0, sr, sc, cost, -1);
+				upper = min(upper + 5, MAXSTEP); /*Control Iterative Depth of the function here.*/
+			}
+			duration = (std::clock() - start) / (double)CLOCKS_PER_SEC;
+			cout << "Execution Time: " << duration << " seconds \n";
+			/*Algorithm execution time ends here*/
+		}
+
+		cout << "Would you like to see the step-wise solution?" << endl;
+		cout << "Press 'y' to see step-wise solution OR 'n' to exit" << endl;
+		char ch;
+		cin >> ch;
+		if (ch == 'y')
+		{
+			cout << "The step-wise solution s shown below: " << endl;
+			disps();
+			cout << "Enter another puzzle" << endl;
+		}
+		else if (ch == 'n')
+			cout << "Enter another puzzle matrix" << endl;
+
+		else
+		{
+			cout << "Invalid input... Taking default option as 'n'" << endl;
+			
+		}
+
+		nsnp: /* nsnp: No Solution Next Puzzle*/
+		cout <<"Please enter another puzzle matrix"<< endl;
+	}
+
+	return;
+}
+
+void Auto()
+{
+	int a[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
+	for (int psc = 0; psc < 10; psc++)
+	{
+		FYS(a); /* Initiating the shuffle*/
+		cout << "The Automatic puzzle generated is shown below: \n" << endl;
+		pass = false;
+		int sr, sc;
+		for (int i = 0; i < N; i++)
+		{
+			for (int j = 0; j < N; j++)
+			{
+				//cin >> tile[i][j];
+				tile[i][j] = autotile[i][j];
+				disp[i][j] = tile[i][j];
+				cout << tile[i][j] << "\t";
+				if (tile[i][j]) tile[i][j]--;
+				else          tile[i][j] = 15, sr = i, sc = j;
+			}
+			cout << "\n";
+		}
+		cout << "\n";
+
+		if (!solvability(sr, tile))
+		{
+			cout << "This puzzle is not solvable...";
+			cout << "Do you want to know why?." << endl;
+			cout << "Press 'y' to know why OR press 'n' to continue on to automatically generate a new puzzle matrix" << endl;
+			char re;
+			cin >> re;
+			if (re == 'y')
+			{
+				cout << "The inversion number is: " << inversion+1<< endl;
+				cout << "The inversion number is clearly odd \n" << endl;
+				goto nsnp;
+			}
+			else if (re == 'n')
+			{
+				goto nsnp;
+			}
+
+		}
+		else
+		{
+			/*Solvability Test passed moving on to finding solution*/
+			/*Algorithm Execution Time starts*/
+			clock_t start;
+			double duration;
+			start = std::clock();
+
+			cout << "The puzzle seams solvable..." << endl;
+			cout << "Now finding solution... Please wait... This may take a while." << endl;
+			int cost = manhattan_distance(tile);
+			upper = min(MAXSTEP, cost + 5); //set a lowerbound for your DFS limit
+
+			while (!pass) /*While the puzzle is not solved.Increase depth at each prospective node*/
+			{
+				IDAstar(0, sr, sc, cost, -1);
+				upper = min(upper + 5, MAXSTEP); /*Control Iterative Depth of the function here.*/
+			}
+			duration = (std::clock() - start) / (double)CLOCKS_PER_SEC;
+			cout << "Execution Time: " << duration << " seconds \n";
+			/*Algorithm execution time ends here*/
+		}
+
+		cout << "Would you like to see the step-wise solution?" << endl;
+		cout << "Press 'y' to see step-wise solution OR 'n' to exit" << endl;
+		char ch;
+		cin >> ch;
+		if (ch == 'y')
+		{
+			cout << "The step-wise solution s shown below: " << endl;
+			disps();
+		}
+		else if (ch == 'n')
+			cout << "Enter another puzzle matrix" << endl;
+
+		else
+		{
+			cout << "Invalid input... terminating method" << endl;
+			goto end;
+		}
+
+		nsnp: /*nsnp: No Solution Next Puzzle*/
+		cout << "Generating a new puzzle using Fisher-Yates shuffle algorithm \n" << endl;
+	}
+end:
+	cout << endl;
+}
+
+int manhattan_distance(int tile[][N]) //we use Manhattan Distance as heuristic function
+{
+	int ret = 0;
+	for (int i = 0; i < N; i++)
+	for (int j = 0; j < N; j++)
+	if (tile[i][j] < 15)
+		ret += abs(i - tr[tile[i][j]]) + abs(j - tc[tile[i][j]]);
+	return ret;
+}
+
+bool valid_move_check(int r, int c) //check if a position is out of boundary
+{
+	return r >= 0 && r < N && c >= 0 && c < N;
+}
+
+bool solvability(int r, int tile[][N]) //get this tile game's solvability, note that a blank is labeled 15, while other is labeled from 0...14
+{
+	int check[N*N], cnt = 0; 
+
+	for (int i = 0; i < N; i++) // coppying the 2D puzzle array into a 1D array called line;
+	for (int j = 0; j < N; j++)
+		check[cnt++] = tile[i][j];
+
+	for (int i = 0; i < N*N; i++)
+	if (check[i] < 15)
+	{
+		for (int j = i + 1; j < N*N; j++)
+		if (check[i] > check[j])
+			inversion++;
+	}
+	return (r & 1) ^ (inversion & 1);
+}
+
+void IDAstar(int depth, int r, int c, int est, int pre) //Depth of this function, row of the blank, column of the blank, actual cost, previous opposite direction (avoiding stupid moves)
+{
+	if (pass) return;
+	if (est == 0)   //Answer found outputting steps...
+	{
+		int count = 1;
+		cout << "The Moves of the blank tile to reach the solution are lsted below... \n" << endl;
+		for (int i = 0; i < depth; i++) /* Output Answer*/
+		{
+
+			cout << "Move No: " << count << " is " << rec[i] << endl;
+			count++;
+		}
+		cout << endl;
+		cout << "The Total No of moves is: " << (count - 1) << endl; /*Output total no of moves*/
+		pass = true;
+		return;
+	}
+
+	for (int i = 0; i < 4; i++) //check all possible direction
+	if (i != pre) //don't go for a stupid move. for example, go left after you go right
+	{
+		int nr = r + dr[i], nc = c + dc[i], oCost, nCost, bak;
+
+		if (valid_move_check(nr, nc))
+		{
+			/*update new heuristic cost as new cost = actual cost + heuristic cost*/
+			bak = tile[nr][nc];
+			oCost = abs(nr - tr[bak]) + abs(nc - tc[bak]);
+			nCost = abs(r - tr[bak]) + abs(c - tc[bak]);
+
+			if (depth + est + nCost - oCost + 1 <= upper) /*Checking if actual cost + heuristic cost is <= lowerbound of DFS, then continue down the branch*/
+			{
+				tile[r][c] = bak, tile[nr][nc] = 15;
+				rec[depth] = name[i];
+				IDAstar(depth + 1, nr, nc, est + nCost - oCost, opp[i]);
+				tile[r][c] = 15, tile[nr][nc] = bak;
+				if (pass) return;
+			}
+		}
+	}
+}
+
+void disps()
+{
+	int c = strlen(rec);/*String lenght of rec array*/
+	int x = 0; 
+	while (x < c) /*Taversing throught the solution array*/
+	{
+		if (rec[x] == 'U')
+		{
+
+			for (int i = 0; i < 4; i++)
+			{
+				for (int j = 0; j < 4; j++)
+				{
+					if (disp[i][j] == 0)/*Finding the blank tile*/
+					{
+						int temp = 0;
+						temp = disp[i - 1][j]; /* Swapping the UP Tile with blank*/
+						disp[i - 1][j] = 0;
+						disp[i][j] = temp;
+						cout << "Move No:" << m << " is shown below" << endl;
+						for (int i = 0; i < 4; i++)
+						{
+							for (int j = 0; j < 4; j++)
+							{
+								cout << disp[i][j] << "\t";
+							}
+							cout << "\n";
+						}
+						cout << "\n \n";
+						goto e; /*Jumping out of the loop*/
+					}
+
+				}
+
+			}
+
+		}
+		else if (rec[x] == 'D')
+		{
+
+			for (int i = 0; i < 4; i++)
+			{
+				for (int j = 0; j < 4; j++)
+				{
+					if (disp[i][j] == 0)/*Finding the blank tile*/
+					{
+						int temp = 0;
+						temp = disp[i + 1][j]; /* Swapping the DOWN Tile with blank*/
+						disp[i + 1][j] = 0;
+						disp[i][j] = temp;
+						cout << "Move No:" << m << " is shown below" << endl;
+						for (int i = 0; i < 4; i++)
+						{
+							for (int j = 0; j < 4; j++)
+							{
+								cout << disp[i][j] << "\t";
+							}
+							cout << "\n";
+						}
+						cout << "\n \n";
+						goto e; /*Jumping out of the loop*/
+					}
+
+				}
+
+			}
+
+		}
+
+		else if (rec[x] == 'L')
+		{
+
+			for (int i = 0; i < 4; i++)
+			{
+				for (int j = 0; j < 4; j++)
+				{
+					if (disp[i][j] == 0)/*Finding the blank tile*/
+					{
+						int temp = 0;
+						temp = disp[i][j - 1]; /* */
+						disp[i][j - 1] = 0;
+						disp[i][j] = temp;
+						cout << "Move No:" << m << " is shown below" << endl;
+						for (int i = 0; i < 4; i++)
+						{
+							for (int j = 0; j < 4; j++)
+							{
+								cout << disp[i][j] << "\t";
+							}
+							cout << "\n";
+						}
+						cout << "\n \n";
+						goto e; /*Jumping out of the loop*/
+
+					}
+
+				}
+
+			}
+
+		}
+		else if (rec[x] == 'R')
+		{
+			for (int i = 0; i < 4; i++)
+			{
+				for (int j = 0; j < 4; j++)
+				{
+					if (disp[i][j] == 0)/*Finding the blank tile*/
+					{
+						int temp = 0;
+						temp = disp[i][j + 1]; /*Swapping the RIGHT Tile with blank*/
+						disp[i][j + 1] = 0;
+						disp[i][j] = temp;
+						cout << "Move No:" << m << " is shown below" << endl;
+						for (int i = 0; i < 4; i++)
+						{
+							for (int j = 0; j < 4; j++)
+							{
+								cout << disp[i][j] << "\t";
+							}
+							cout << "\n";
+						}
+						cout << "\n \n";
+						goto e; /*Jumping out of the loop*/
+					}
+
+				}
+
+			}
+
+		}
+
+	e:
+		x++; /*Incrementing the array traverser*/
+		m++; /*Incrementing the move counter*/
+	}
+
+	return; /*Return back to calling function*/
+}
+
+void main()
+{
+	
+	start();
+	initialization();
+	cout << "Welcome lets start... Follow the instructions below: \n" << endl;
+	cout << "Press 'm' for manual input and press 'a' for auto input" << endl;
+	char in;
+	cin >> in;
+	if (in == 'm')
+	{
+		cout << "Enter the no of puzzles you want to solve" << endl;
+		cin >> T;
+		cout << "Please Enter the puzzle matrix. One element at a time in a row-wise fashion" << endl;
+		manin(); /*Calling the manin fuction*/
+	}
+	else if (in == 'a')
+		Auto(); /*Calling the Auto function*/
+	else
+	{
+		cout << "Error code: M1001" << endl; /*Classified as: Fatal Error*/
+	}
+	
+
+}
+
+/*------------------------------------------------------------------END----------------------------------------------------------------------------*/
